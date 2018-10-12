@@ -2,19 +2,30 @@ package com.lzjlxebr.calculator;
 
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import com.lzjlxebr.util.ToastToaster;
+import com.lzjlxebr.bean.Calculate;
+import com.lzjlxebr.util.NumberChecker;
+import com.lzjlxebr.util.Operator;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
 
 /**
+ * @author lzjlxebr
+ * @since 2018/10/12
+ * <p>
+ * 运算过程中操作的对象
  * 思路：
  * 1、用户每次点击运算操作符时，即会运算一次
  * 2、每次输入的数字长度为20
+ * 3、把第一次操作符被点击前的所有数字定为第一次数字，以此类推
+ * 4、输入第一次数字时检查正常的数字规则即可
+ * 5、输入第二次数字输入前要检查这是否为第二次数字，不是的话按照第一次的检查，是的话按照第二次的检查
  */
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -113,6 +124,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      */
     private Button mBtnClear;
 
+    /**
+     * 运算中的操作对象
+     */
+    private Calculate calculate;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -122,8 +138,20 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         initComponent();
 
         initListener();
+
+        initCalculateObject();
     }
 
+    /**
+     * 初始化运算中的操作对象
+     */
+    private void initCalculateObject() {
+        calculate = new Calculate(new ArrayList<BigDecimal>(), new BigDecimal("0.0"), this);
+    }
+
+    /**
+     * 初始化事件监听器
+     */
     private void initListener() {
         mTvCalculatorArea.setOnClickListener(this);
         mTvResult.setOnClickListener(this);
@@ -170,6 +198,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mBtnDivide = findViewById(R.id.button_div);
         mBtnClear = findViewById(R.id.button_clear);
     }
+
+    private int count = 0;
 
 
     @Override
@@ -226,19 +256,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 break;
             }
             case R.id.button_go: {
+                option(Operator.EQUALS);
                 break;
             }
             case R.id.button_plus: {
-                addition();
+                option(Operator.ADDITION);
                 break;
             }
             case R.id.button_minus: {
+                option(Operator.SUBTRACTION);
                 break;
             }
             case R.id.button_mul: {
+                option(Operator.MULTIPLY);
                 break;
             }
             case R.id.button_div: {
+                option(Operator.DIVIDE);
                 break;
             }
             case R.id.button_clear: {
@@ -255,59 +289,88 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      * @param text 当前点击的Button组件对应的文字信息
      */
     private void appendNumberOrPointOrMinusOperatorToMainMonitor(String text) {
-
         String alreadyAppendedText = mTvCalculatorArea.getText().toString();
-
-        // 检测小数点，要符合小数的规范
-        if (".".equals(text) && alreadyAppendedText.contains(".")) {
-            ToastToaster.toast(this, "已经包含小数点了");
-            return;
+        if (NumberChecker.check(text, alreadyAppendedText, this)) {
+            mTvCalculatorArea.append(text);
         }
-
-        //  检测长度，默认不超过20
-        if (alreadyAppendedText.length() > 20) {
-
-            ToastToaster.toast(this, "已经超过20个数字了（包含小数点）");
-            return;
-        }
-
-        // 检测负号
-        if("-".equals(alreadyAppendedText)){
-            if(alreadyAppendedText.indexOf("-") == 0){
-                return;
-            }
-        }
-
-        mTvCalculatorArea.append(text);
     }
 
     /**
      * 清除所有显示信息
      */
-    private void clearEverything(){
+    private void clearEverything() {
         clearMainMonitor();
         clearResult();
+        calculate.clear();
     }
 
-    private void clearMainMonitor(){
+    private void clearMainMonitor() {
         mTvCalculatorArea.setText("");
     }
 
-    private void clearResult(){
+    private void clearResult() {
         mTvResult.setText("");
     }
 
-    private void setResult(String result){
+    private void setResult(String result) {
         mTvResult.setText(result);
     }
 
-    private BigDecimal addition(){
-        // 获取当前数字
-        String alreadyAppendedText = mTvCalculatorArea.getText().toString();
+    private void option(Operator operator) {
 
-        BigDecimal bigDecimal = new BigDecimal(alreadyAppendedText);
-        ToastToaster.toast(this, "bigDecimal: " + bigDecimal.toPlainString());
+        String text = mTvCalculatorArea.getText().toString();
+        clearMainMonitor();
 
-        return bigDecimal;
+        if (TextUtils.isEmpty(text)) {
+
+            calculate.setCurrentOperation(operator);
+
+            return;
+        }
+        if (calculate.getNumbersSize() < 1) {
+            BigDecimal currentNumber = new BigDecimal(text);
+            calculate.saveNumberToObject(currentNumber);
+            mTvResult.setText(text);
+            calculate.setCurrentResult(currentNumber);
+        } else {
+            int numbersSize = calculate.getNumbersSize();
+            BigDecimal prevResult = calculate.getCurrentResult();
+            BigDecimal num1 = calculate.getNumberOf(numbersSize - 1);
+
+            Operator prevOperator;
+            prevOperator = calculate.getCurrentOperation();
+
+            switch (prevOperator) {
+                case ADDITION: {
+                    prevResult = prevResult.add(num1);
+                    calculate.setCurrentResult(prevResult);
+                    mTvResult.setText(prevResult.toPlainString());
+                    break;
+                }
+                case SUBTRACTION: {
+                    prevResult = prevResult.subtract(num1);
+                    calculate.setCurrentResult(prevResult);
+                    mTvResult.setText(prevResult.toPlainString());
+                    break;
+                }
+                case MULTIPLY: {
+                    prevResult = prevResult.multiply(num1);
+                    calculate.setCurrentResult(prevResult);
+                    mTvResult.setText(prevResult.toPlainString());
+                    break;
+                }
+                case DIVIDE: {
+                    prevResult = prevResult.divide(num1, RoundingMode.CEILING);
+                    calculate.setCurrentResult(prevResult);
+                    mTvResult.setText(prevResult.toPlainString());
+                    break;
+                }
+            }
+        }
+        calculate.setCurrentOperation(operator);
+        if (operator == Operator.EQUALS) {
+            clearMainMonitor();
+            calculate.clear();
+        }
     }
 }

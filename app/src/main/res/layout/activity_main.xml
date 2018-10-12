@@ -176,7 +176,7 @@
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:hint="当前运算将显示在此"
-        android:textSize="12sp"
+        android:textSize="18sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
